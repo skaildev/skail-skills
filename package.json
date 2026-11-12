@@ -1,0 +1,9 @@
+{
+  "name": "skail-skills",
+  "private": true,
+  "description": "Skail skills for AI agents",
+  "license": "Apache-2.0",
+  "scripts": {
+    "check": "node tools/check-skill.mjs"
+  }
+}

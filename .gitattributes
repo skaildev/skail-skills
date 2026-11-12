@@ -1,0 +1,2 @@
+# Agents read these files by raw URL: keep LF everywhere, whatever the contributor's OS.
+* text=auto eol=lf
