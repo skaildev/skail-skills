@@ -1,32 +1,28 @@
-# Running an example without containers
+# Running an example without its script
 
-The examples' `scripts/run.sh` and `scripts/run.ps1` need podman or docker. Without either, run the web
-app and the worker straight from the SDK. The example's `.vscode/launch.json` lists, for each app, the
-`program`, its `cwd` and its extra `env` — it is the reference for that example; reproduce it.
+`scripts/run.sh` and `scripts/run.ps1` already run the example without containers when the machine has
+no Docker or Podman: they fall back to the language SDK by themselves. Use this page only when the
+script cannot be used: an IDE or debugger, a process you must manage yourself, a custom setup.
 
-## Steps
+Each example is one app (worker + page on `http://localhost:8080`). It loads `.env` from its folder (or
+a parent folder) by itself, so there is no variable to export and no second process to start.
 
-1. **Load `.env`.** Put every `KEY=VALUE` line of `.env` into the environment of the processes you start.
-   The apps do not read `.env` themselves. Strip surrounding quotes from values; ignore comments and
-   blank lines.
-2. **Point the worker at localhost.** `.env` sets `WEB_BASE_URL` to the web app's container name, which
-   does not exist outside containers. Set `WEB_BASE_URL=http://localhost:<WEB_PORT>` (default port
-   8080). For a .NET web app, also set `ASPNETCORE_URLS=http://localhost:<WEB_PORT>`.
-3. **Build.**
-   - C#: `dotnet build` on the solution at the root.
-   - TypeScript: `pnpm install`, then `pnpm build` (it runs `skail build` for the durable bundle).
-4. **Start the web app**, then wait until `http://localhost:<WEB_PORT>` answers.
-5. **Start the worker.**
-6. Keep each app in its own terminal, or as a background process whose id you keep. The durability demo
-   needs to stop and start **only the worker** while a run waits.
+## Commands, from the project folder
 
-Which project is the web app and which is the worker is in the example's README and `launch.json`
-(for `usd-quote` in C#: `src/SkailUsdQuote.Web` and `src/SkailUsdQuote.Worker`).
+- **TypeScript** (Node.js 20.12 or newer): `npm ci` (or `npm install`), `npm run build`, `npm start`.
+  The build bakes `SKAIL_WORKLOAD` from `.env` into the durable bundle (`.skail/`): **run
+  `npm run build` again after changing `SKAIL_WORKLOAD`**, or the app keeps serving the old workload.
+- **C#** (.NET 8 SDK or newer): `dotnet run`. It reads `SKAIL_WORKLOAD` at start; no rebuild needed.
+
+Variables already set in the process environment win over `.env`. If the app connects with the wrong
+workload or key, look for a stale `SKAIL_*` exported in that shell before editing `.env`.
+
+For the durability demo, keep the process id: stop the app while a run waits, then start it again.
 
 ## Windows notes
 
-- Windows PowerShell 5.1 (the one that ships with Windows) is enough for this path; only
-  `scripts/run.ps1` needs PowerShell 7.
+- Windows PowerShell 5.1 (the one that ships with Windows) is enough, for the script and for these
+  commands. Run the script as `powershell -ExecutionPolicy Bypass -File scripts\run.ps1`.
 - If you write a helper script for the user, keep it ASCII-only: Windows PowerShell 5.1 reads a script
   without a byte order mark in the system code page, and a typographic dash or quote breaks parsing.
 - In Windows PowerShell 5.1 with `$ErrorActionPreference = 'Stop'`, redirecting a native command's

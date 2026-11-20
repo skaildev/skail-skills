@@ -10,7 +10,7 @@ Read [concepts.md](concepts.md) first: everything here assumes replay and determ
 - `tsc` alone does not produce the durable bundle. Build it with
   `skail build src/functions.ts --workload <name:vX.Y.Z> --out .skail/functions.mjs --manifest .skail/manifest.json`,
   and point the host at those files: `createSkailPlatform({ bundle, manifest })`. Run that build
-  through the package scripts (`pnpm build`) or `npx skail build …` inside the project: there `skail`
+  through the package scripts (`npm run build`) or `npx skail build …` inside the project: there `skail`
   is `@skail/build`'s binary. A globally installed Skail CLI also answers to `skail`, and its `build`
   takes no file argument.
 - `@skail/runtime` (2.0.0 and later) reads `SKAIL_WORKLOAD`, `SKAIL_SIDECAR` or `SKAIL_SIDECAR_URL`,

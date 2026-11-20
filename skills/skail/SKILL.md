@@ -2,7 +2,7 @@
 name: skail
 description: Run, build and debug durable workflows on the Skail platform. Use when the user wants to try Skail or run one of its examples (the quickstart), when a project has a skail.json or imports @skail/runtime or Skail.Platform.Runtime, or when the user mentions Skail, workloads, SkailFunction/SkailCommand, durable tasks, task retries or the Skail Monitor.
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
 ---
 
 # Skail
@@ -45,22 +45,27 @@ is a public repository on github.com/skaildev, one per example and language:
 | `subscription-cycle` | long-lived lifecycle: trial, monthly charge, retry, cancel | `skail-subscription-cycle-*` |
 | `agent-with-tools` | an AI agent whose every decision is a recorded step | `skail-agent-with-tools-*` |
 
-C# (`-dotnet`) and TypeScript (`-node`) exist today; Java and Python are coming. Each example has a
-worker (the Skail code) and a small web app that starts and stops runs; **the web app is what triggers
-the example**, not the portal. Read the example's README before running it: it is the source of truth
-for that example.
+C# (`-dotnet`) and TypeScript (`-node`) exist today; Java and Python are coming. Each example is one
+app: it runs the worker (the Skail code) and serves a page at `http://localhost:8080` that starts and
+stops runs; **the page is what triggers the example**, not the portal. The app reads `.env` from its
+folder by itself. Read the example's README before running it: it is the source of truth for that
+example.
 
 ### 1. Check the machine
 
 Run these and report what is missing before going further — do not install system software without
 asking:
 
-- the language SDK: `dotnet --list-sdks` (needs .NET 8+) or `node -v` (20, 22 or 24) and `pnpm -v` (10);
+- something to run the example with — any one is enough; the run script uses the first it finds, in
+  this order: Docker (`docker info` must succeed: the service is running), Podman, or the language
+  SDK — `node -v` (20.12 or newer, with `npm`) for TypeScript, `dotnet --list-sdks` (8 or newer; a
+  runtime alone cannot build) for C#;
 - the Skail CLI: `skail version --json`. If missing: for C#, `dotnet tool install -g Skail.Cli`; for
   TypeScript, `npm i -g @skail/cli` (or run it as `npx @skail/cli <command>`). `npx create-skail-app`
-  only creates the project — it does not put `skail` on the PATH;
-- a container engine (optional): `podman --version` or `docker --version`;
-- on Windows, PowerShell 7 (optional, only for `scripts/run.ps1`): `pwsh -v`.
+  only creates the project — it does not put `skail` on the PATH.
+
+On Windows the run script works in the Windows PowerShell that ships with Windows; PowerShell 7 is not
+needed.
 
 ### 2. Create the project, connected to the user's environment
 
@@ -89,25 +94,29 @@ continue from step 3 once the folder exists. Never paste several commands for th
 after `init`: the code prompt would read the next line as the code.
 
 The CLI creates a folder named after the example id, writes `.env` and prints the workload, e.g.
-`usdquote:v1.0.0`. **The workload comes from the repository's `.env.example`, not from the example id**
-— keep it as written.
+`usdquote:v1.0.0`. **The workload in `.env` is the one the setup code carries** — the workload the
+portal registered for this environment — and it can differ from the repository's `.env.example`: the
+portal registers C# with a `dotnet` suffix (`usdquotedotnet:v1.0.0`) and TypeScript without it
+(`usdquote:v1.0.0`), so both languages can share an environment without taking each other's runs.
+When they differ, `init` warns `the setup code is for workload … and the template uses …: .env uses …`.
+That warning is expected: keep what `.env` says and do not "fix" it back to `.env.example`. Without a
+setup code, `.env` gets the `.env.example` value — make it match the workload registered in the portal.
 
-### 3. Start the worker and the web app
+### 3. Start the example
 
-Pick the first option that works on this machine:
+From the project folder, run the example's script — **with no arguments**:
 
-1. **With podman or docker** — from the project folder:
-   `scripts/run.sh up` (macOS, Linux, Git Bash, WSL) or `pwsh scripts/run.ps1 up` (Windows with
-   PowerShell 7). `scripts/run.sh logs` follows the logs; `down` stops everything.
-2. **Without containers** — run both apps straight from the SDK
-   ([references/run-without-containers.md](references/run-without-containers.md) has the details):
-   - load every `KEY=VALUE` of `.env` into the process environment (the apps do not read `.env`
-     themselves);
-   - set `WEB_BASE_URL=http://localhost:<WEB_PORT>` for the worker: `.env` points at the web app's
-     container name, which does not exist outside containers;
-   - build, start the web app, wait until it answers on `http://localhost:<WEB_PORT>` (default 8080),
-     then start the worker — each in its own terminal or as a background process whose id you keep,
-     so the worker can be restarted alone later.
+- macOS, Linux, Git Bash, WSL: `scripts/run.sh`
+- Windows (PowerShell or cmd): `powershell -ExecutionPolicy Bypass -File scripts\run.ps1`. Calling
+  `scripts\run.ps1` directly stops on Windows' default execution policy.
+
+The script picks Docker, then Podman, then the language SDK (it runs `npm ci` + `npm run build` +
+`node dist/main.js`, or `dotnet run`), and if none is usable it says what to install — ask the user
+before installing anything. There are no subcommands (no `up`, `logs`, `down` or `restart`): any
+argument is passed on to the app. The app runs in the foreground; Ctrl+C stops it. If you start it
+for the user, start it as a background process whose id you keep, so you can stop it and start it
+again for step 4. To run it without the script, see
+[references/run-without-containers.md](references/run-without-containers.md).
 
 ### 4. See it run — and see it survive
 
@@ -115,9 +124,12 @@ Pick the first option that works on this machine:
 2. The run shows up in the portal Monitor and with `skail tasks list --since 10m --json`, run from the
    project folder (the CLI reads the connection from `.env`). The quickstart page on dash.skail.dev
    also detects the worker and the first run.
-3. **Durability**: while the run is waiting (the `usd-quote` example waits 30 s between quotes),
-   restart only the worker — `scripts/run.sh restart`, or stop and start the worker process. The run
-   continues on schedule, handled by the new worker. This is the point of Skail; show it.
+3. **Durability**: while the run is waiting (the `usd-quote` example waits one minute between quotes),
+   stop the app — Ctrl+C, or stop the process you started — and run the script again. The whole app
+   closes; the run stays in Skail, waiting. The app that comes back receives it and the next quote
+   arrives on schedule, numbered after the last one. The quotes from before the restart lived in the
+   memory of the app that closed, so the page does not show them; the Monitor does. This is the point
+   of Skail; show it.
 
 ### When something fails
 
@@ -126,10 +138,12 @@ Pick the first option that works on this machine:
 | `This setup code is no longer valid` | used, expired (15 min) or mistyped. Ask for a new one from the portal. |
 | The CLI asked for the code and read the next command as the code | several commands were pasted at once. Run `init` alone. |
 | `npx create-skail-app` answers 404 | the npm package is not available. Clone `github.com/skaildev/skail-<id>-node`, copy `.env.example` to `.env` and fill the connection from the portal's "Configure an existing project" tab. |
-| `'pwsh' is not recognized` | Windows without PowerShell 7: use `scripts/run.sh` in Git Bash/WSL, install PowerShell 7, or run without containers. |
-| `neither podman nor docker found` | run without containers (step 3, option 2), or install one. |
+| `running scripts is disabled on this system` | `scripts\run.ps1` was called directly: use `powershell -ExecutionPolicy Bypass -File scripts\run.ps1`. |
+| `Nothing to run the demo with` | none of Docker, Podman or the SDK is usable (the message lists what to install). Ask the user which one to install. `docker` installed but its service stopped counts as missing. |
+| `Node.js … is too old` / `dotnet was found, but without the .NET 8 SDK` | install Node.js 20.12+ or the .NET 8 SDK. |
+| `Missing .env` / `SKAIL_WORKLOAD is empty in .env` | `init` ran without a setup code, so it wrote no `.env`: copy `.env.example` to `.env` and fill it from the portal's "Configure an existing project" tab. |
 | Worker is connected but never receives work | `SKAIL_WORKLOAD` in `.env` differs from the workload registered in the portal, or whoever triggers uses another version string (without the `v`, or other case). See [references/troubleshooting.md](references/troubleshooting.md). |
-| The web app cannot reach the worker's progress | `WEB_BASE_URL` still points at the container name; set it to `http://localhost:<port>`. |
+| A run started in one language is handled by the other language's app | both apps use the same `SKAIL_WORKLOAD` on the same environment and share its runs. Use the workload from the setup code (C# has the `dotnet` suffix), or another environment. |
 
 ---
 
@@ -153,5 +167,5 @@ Pick the first option that works on this machine:
 | [typescript.md](references/typescript.md) | the project is TypeScript / Node |
 | [environment-api.md](references/environment-api.md) | starting a task or firing an event from outside the worker (HTTP) |
 | [cli.md](references/cli.md) | running any `skail` command: output, exit codes, login |
-| [run-without-containers.md](references/run-without-containers.md) | the machine has neither podman nor docker |
+| [run-without-containers.md](references/run-without-containers.md) | running an example without its `scripts/run.*` (an IDE, a debugger, a custom setup) |
 | [troubleshooting.md](references/troubleshooting.md) | a task failed, never ran, or the worker gets no work |
